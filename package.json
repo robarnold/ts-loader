@@ -1,0 +1,21 @@
+{
+  "name": "ts-loader",
+  "main": "index.js",
+  "version": "0.1.0",
+  "description": "Typescript loader module for webpack",
+  "dependencies": {
+    "source-map": "~0.1.33",
+    "typescript-api": "~0.9.7",
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:robarnold/ts-loader.git"
+  },
+  "licenses": [
+    {
+      "type": "MIT",
+      "url": "http://www.opensource.org/licenses/mit-license.php"
+    }
+  ]
+}
+
