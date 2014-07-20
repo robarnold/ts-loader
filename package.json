@@ -5,6 +5,7 @@
   "description": "Typescript loader module for webpack",
   "dependencies": {
     "source-map": "~0.1.33",
+    "typescript": "~0.9.7",
     "typescript-api": "~0.9.7",
   },
   "repository": {
