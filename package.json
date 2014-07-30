@@ -6,7 +6,7 @@
   "dependencies": {
     "source-map": "~0.1.33",
     "typescript": "~1.0.0",
-    "typescript-api": "~1.0.0",
+    "typescript-api": "~1.0.0"
   },
   "repository": {
     "type": "git",
