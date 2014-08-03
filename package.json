@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "description": "Typescript loader module for webpack",
   "dependencies": {
-    "source-map": "~0.1.33",
-    "typescript": "~1.0.0",
-    "typescript-api": "~1.0.0",
+    "source-map": "^0.1.33",
+    "typescript": "^1.0.0",
+    "typescript-api": "^1.0.0"
   },
   "repository": {
     "type": "git",
