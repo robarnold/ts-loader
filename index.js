@@ -3,6 +3,7 @@ var path = require('path');
 var util = require('util');
 var ts = require('typescript-api');
 var sm = require('source-map');
+var loaderUtils = require('loader-utils');
 
 var kCompilationOptions = (function () {
   var settings = new ts.CompilationSettings();
@@ -36,11 +37,18 @@ function dumpDiagnostics(loader, diagnostics) {
   return hadErrors;
 }
 
+function useCache() {
+  var query = loaderUtils.parseQuery(this.query);
+
+  if(query.cache === false) return false;
+  return true;
+}
+
 var kResolverHost = {
   snapshotCache: {},
   getScriptSnapshot: function (fileName) {
     var snapshot = this.snapshotCache[fileName];
-    if (!snapshot) {
+    if (!useCache() || !snapshot) {
       snapshot = this.snapshotCache[fileName] = ts.ScriptSnapshot.fromString(fs.readFileSync(fileName).toString());
     }
     return snapshot;
@@ -67,7 +75,7 @@ function Instance() {
 
 Instance.prototype = {
   addFileIfNecessary: function (path, references) {
-    if (this.dependencies[path]) {
+    if (useCache() && this.dependencies[path]) {
       return;
     }
     var scriptSnapshot = kResolverHost.getScriptSnapshot(path);
@@ -79,6 +87,9 @@ Instance.prototype = {
       0, // version
       true, // isOpen
       references); // referencedFiles
+  },
+  clearDependencies: function () {
+    this.dependencies = [];
   },
   compiledOutputFor: function (sourcePath, source) {
     var output = this.compiler.emit(sourcePath, function (pathToResolve) {
@@ -114,6 +125,10 @@ var kInstance = new Instance();
 
 module.exports = function (source) {
   this.cacheable && this.cacheable(true);
+  
+  if(!useCache()) {
+    kInstance.clearDependencies();
+  }
 
   var hadErrors = false;
 
