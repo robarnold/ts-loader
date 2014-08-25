@@ -39,9 +39,10 @@ function dumpDiagnostics(loader, diagnostics) {
 
 function useCache() {
   var query = loaderUtils.parseQuery(this.query);
+  
+  var cacheIsDisabled = (query.cache === 'false');
 
-  if(query.cache === false) return false;
-  return true;
+  return !cacheIsDisabled;  
 }
 
 var kResolverHost = {
@@ -125,7 +126,9 @@ var kInstance = new Instance();
 
 module.exports = function (source) {
   this.cacheable && this.cacheable(true);
-  
+
+  useCache  = useCache.bind(this);
+
   if(!useCache()) {
     kInstance.clearDependencies();
   }
