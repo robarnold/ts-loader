@@ -37,22 +37,18 @@ function dumpDiagnostics(loader, diagnostics) {
   return hadErrors;
 }
 
-function useCache() {
-  var query = loaderUtils.parseQuery(this.query);
-  
-  var cacheIsDisabled = (query.cache === 'false');
-
-  return !cacheIsDisabled;  
-}
-
 var kResolverHost = {
   snapshotCache: {},
-  getScriptSnapshot: function (fileName) {
-    var snapshot = this.snapshotCache[fileName];
-    if (!useCache() || !snapshot) {
-      snapshot = this.snapshotCache[fileName] = ts.ScriptSnapshot.fromString(fs.readFileSync(fileName).toString());
+  getScriptSnapshotModified: function (fileName) {
+    var lastModified = fs.statSync(fileName).mtime;
+    var snapshot = this.snapshotCache[fileName + lastModified];
+    if (!snapshot) {
+      snapshot = this.snapshotCache[fileName + lastModified] = ts.ScriptSnapshot.fromString(fs.readFileSync(fileName).toString());      
     }
-    return snapshot;
+    return {lastModified: lastModified, snapshot: snapshot};
+  },
+  getScriptSnapshot: function (fileName) {
+    return this.getScriptSnapshotModified(fileName).snapshot;
   },
   resolveRelativePath: function (file, from) {
     return path.resolve(from, file);
@@ -76,18 +72,18 @@ function Instance() {
 
 Instance.prototype = {
   addFileIfNecessary: function (path, references) {
-    if (useCache() && this.dependencies[path]) {
-      return;
-    }
-    var scriptSnapshot = kResolverHost.getScriptSnapshot(path);
-    this.dependencies[path] = true;
+    var scriptSnapshotInfo = kResolverHost.getScriptSnapshotModified(path);
+    var cacheKey = path + scriptSnapshotInfo.lastModified;
+    if(this.dependencies[cacheKey]) return;
+    this.dependencies[cacheKey] = true;
     this.compiler.addFile(
       path,
-      scriptSnapshot,
+      scriptSnapshotInfo.snapshot,
       ts.ByteOrderMark.Utf8,
       0, // version
       true, // isOpen
       references); // referencedFiles
+    
   },
   clearDependencies: function () {
     this.dependencies = [];
@@ -124,19 +120,15 @@ Instance.prototype = {
 
 var kInstance = new Instance();
 
+var analyzedCache = {};
+
 module.exports = function (source) {
   this.cacheable && this.cacheable(true);
-
-  useCache  = useCache.bind(this);
-
-  if(!useCache()) {
-    kInstance.clearDependencies();
-  }
 
   var hadErrors = false;
 
   var resolutionResults = ts.ReferenceResolver.resolve([this.resourcePath], kResolverHost, true);
-
+  
   resolutionResults.diagnostics.forEach(function (diag) {
     var wasError = handleDiagnostic(this, diag);
     hadErrors = hadErrors || wasError;
@@ -157,13 +149,22 @@ module.exports = function (source) {
 
   // Start looking for errors
   resolutionResults.resolvedFiles.forEach(function (file) {
+    var lastModified = fs.statSync(file.path);
+    var cacheKey = file.path + lastModified;
+
+    if(analyzedCache[cacheKey]) return;
+    analyzedCache[cacheKey] = true;
+
     var syntaxErrors = kInstance.compiler.getSyntacticDiagnostics(file.path);
+    
     if (syntaxErrors.length > 0) {
       dumpDiagnostics(this, syntaxErrors);
       hadErrors = true;
       return;
     }
+    
     var semanticErrors = kInstance.compiler.getSemanticDiagnostics(file.path);
+    
     if (semanticErrors.length > 0) {
       dumpDiagnostics(this, semanticErrors);
       hadErrors = true;
