@@ -39,11 +39,16 @@ function dumpDiagnostics(loader, diagnostics) {
 
 var kResolverHost = {
     snapshotCache: {},
+    snapshotModifiedCache: {},
+
     getScriptSnapshotModified: function(fileName) {
-        var lastModified = fs.statSync(fileName).mtime;
-        var snapshot = this.snapshotCache[fileName + lastModified];
+        var lastModified = fs.statSync(fileName).mtime.getTime();
+        
+        var snapshot =  (lastModified && this.snapshotModifiedCache[fileName] === lastModified) ? this.snapshotCache[fileName] : false;
+
         if (!snapshot) {
-            snapshot = this.snapshotCache[fileName + lastModified] = ts.ScriptSnapshot.fromString(fs.readFileSync(fileName).toString());
+            this.snapshotModifiedCache[fileName] = lastModified;
+            snapshot = this.snapshotCache[fileName] = ts.ScriptSnapshot.fromString(fs.readFileSync(fileName).toString());
         }
         return {
             lastModified: lastModified,
@@ -75,10 +80,11 @@ function Instance() {
 
 Instance.prototype = {
     addFileIfNecessary: function(path, references) {
-        var scriptSnapshotInfo = kResolverHost.getScriptSnapshotModified(path);
-        var cacheKey = path + scriptSnapshotInfo.lastModified;
-        if (this.dependencies[cacheKey]) return;
-        this.dependencies[cacheKey] = true;
+        var scriptSnapshotInfo = kResolverHost.getScriptSnapshotModified(path);       
+        
+        if(this.dependencies[path] === scriptSnapshotInfo.lastModified) return;        
+        this.dependencies[path] = scriptSnapshotInfo.lastModified;
+
         this.compiler.addFile(
             path,
             scriptSnapshotInfo.snapshot,
@@ -152,11 +158,10 @@ module.exports = function(source) {
 
     // Start looking for errors
     resolutionResults.resolvedFiles.forEach(function(file) {
-        var lastModified = fs.statSync(file.path);
-        var cacheKey = file.path + lastModified;
-
-        if (!analyzedCache[cacheKey]) {
-            analyzedCache[cacheKey] = true;
+        var lastModified = fs.statSync(file.path).value;
+        
+        if (!analyzedCache[file.path] === lastModified) {
+            analyzedCache[file.path] = lastModified;
             var syntaxErrors = kInstance.compiler.getSyntacticDiagnostics(file.path);
 
             if (syntaxErrors.length > 0) {
